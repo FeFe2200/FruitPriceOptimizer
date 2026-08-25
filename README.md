@@ -120,3 +120,8 @@ docker compose run --rm web pytest -q
 - web/worker/scheduler 각각의 readiness, 구조화 로그, 큐 지연·실패율 메트릭
 
 현재 구현은 로컬 단일 호스트 MVP에 맞춰져 있습니다. 외부 네트워크에 공개하거나 다중 worker로 확장하기 전에는 위 항목을 운영 필수 작업으로 처리해야 합니다.
+
+
+## 실행화면
+<img width="888" height="267" alt="스크린샷 2026-08-26 오전 2 38 20" src="https://github.com/user-attachments/assets/bec49345-57c8-4203-828f-9392e1b1dd6b" />
+<img width="1103" height="914" alt="스크린샷 2026-08-26 오전 2 38 12" src="https://github.com/user-attachments/assets/004e379f-5f78-4121-8769-fb97546d648e" />
