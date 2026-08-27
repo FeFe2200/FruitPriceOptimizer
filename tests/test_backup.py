@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
+from stat import S_IMODE
 
 from app.backup import create_database_dump
 
@@ -25,6 +26,9 @@ def test_database_dump_is_versioned_and_updates_latest(tmp_path, monkeypatch):
     assert created.name == "fruitprice-20260827-143015.dump"
     assert created.read_bytes() == b"PGDMP test backup"
     assert (tmp_path / "latest.dump").read_bytes() == created.read_bytes()
+    assert S_IMODE(created.stat().st_mode) == 0o600
+    assert S_IMODE((tmp_path / "latest.dump").stat().st_mode) == 0o600
+    assert S_IMODE(tmp_path.stat().st_mode) == 0o700
     command, check, env, capture_output = calls[0]
     assert command[:2] == ["pg_dump", "--host"]
     assert "secret" not in command

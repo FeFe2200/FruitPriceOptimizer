@@ -22,6 +22,7 @@ def create_database_dump(
 
     destination = Path(dump_dir)
     destination.mkdir(parents=True, exist_ok=True)
+    destination.chmod(0o700)
     timestamp = (now or datetime.now(UTC)).strftime("%Y%m%d-%H%M%S")
     final_path = destination / f"fruitprice-{timestamp}.dump"
     temporary_path = destination / f".{final_path.name}.tmp"
@@ -52,7 +53,9 @@ def create_database_dump(
         if not temporary_path.exists() or temporary_path.stat().st_size == 0:
             raise RuntimeError("생성된 DB 덤프가 비어 있습니다")
         temporary_path.replace(final_path)
+        final_path.chmod(0o600)
         shutil.copyfile(final_path, latest_temporary)
+        latest_temporary.chmod(0o600)
         latest_temporary.replace(destination / "latest.dump")
     finally:
         temporary_path.unlink(missing_ok=True)
