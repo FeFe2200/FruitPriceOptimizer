@@ -7,3 +7,6 @@ __pycache__/
 .DS_Store
 playwright-report/
 test-results/
+
+# PostgreSQL backups contain sensitive application data.
+dbDump/*.dump

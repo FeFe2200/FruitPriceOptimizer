@@ -76,6 +76,34 @@ def main() -> None:
     sites_page = opener.open(BASE_URL + "/sites").read().decode()
     if "사이트·자격증명" not in sites_page:
         raise RuntimeError("admin site access failed")
+    if "AdminPlus · hwanggs3" not in sites_page or "최고집 파트너" not in sites_page:
+        raise RuntimeError("site quick-registration presets are missing")
+    try:
+        post(
+            opener,
+            "/sites",
+            {
+                "name": "invalid-smoke-site",
+                "domain": "shop.example",
+                "catalog_url": "https://shop.example/products",
+                "login_url": "https://shop.example/login",
+                "username_selector": "",
+                "password_selector": "",
+                "submit_selector": "",
+                "site_username": "incomplete-user",
+                "site_password": "",
+                "csrf": csrf_from(sites_page),
+            },
+        )
+    except urllib.error.HTTPError as exc:
+        validation_body = exc.read().decode()
+        if exc.code != 400 or "모두 입력" not in validation_body:
+            raise RuntimeError("site validation was not rendered as a useful 400 response") from exc
+    else:
+        raise RuntimeError("incomplete site configuration was unexpectedly accepted")
+    dumped_page = post(opener, "/sites/dump", {"csrf": csrf_from(sites_page)})
+    if "DB 덤프 완료" not in dumped_page or "latest.dump" not in dumped_page:
+        raise RuntimeError("database dump action failed")
     users_page = opener.open(BASE_URL + "/users").read().decode()
     viewer_password = password
     if "smoke_viewer_v2" not in users_page:
@@ -115,7 +143,10 @@ def main() -> None:
             raise
     else:
         raise RuntimeError("viewer mutation was not rejected")
-    print("smoke test passed: health, login, product CRUD, worker queue, admin access, viewer RBAC")
+    print(
+        "smoke test passed: health, login, product CRUD, worker queue, "
+        "site presets, DB dump, admin access, viewer RBAC"
+    )
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ Docker와 PostgreSQL로 실행하는 상품 가격 수집·비교 시스템입�
 - `worker`: PostgreSQL 큐에서 작업을 가져와 Playwright로 수집
 - `scheduler`: cron 일정이 도래하면 비교 작업을 큐에 등록
 - `db`: PostgreSQL 16
+- `db-init`: 새/초기화된 DB이면 `dbDump/latest.dump`를 시작 전에 자동 복원
 
 Redis 없이 PostgreSQL의 `FOR UPDATE SKIP LOCKED`를 작업 큐로 사용합니다.
 
@@ -62,6 +63,25 @@ DB 데이터까지 삭제:
 ```bash
 docker compose down -v
 ```
+
+볼륨을 삭제한 뒤 다시 시작해도 `dbDump/latest.dump`가 있으면 DB가 자동 복원됩니다. 기존 DB 스키마가 있으면 복원을 건너뛰므로 현재 데이터를 덮어쓰지 않습니다.
+
+## DB 백업과 사이트 자격증명 수정
+
+관리자 **사이트·자격증명** 화면의 **DB 덤프 하기** 버튼은 다음 두 파일을 만듭니다.
+
+- `dbDump/fruitprice-YYYYMMDD-HHMMSS.dump`: 시점별 백업
+- `dbDump/latest.dump`: Docker 시작 시 자동 복원할 최신 백업
+
+백업에는 사이트 자격증명이 평문이 아닌 Fernet 암호문으로 들어갑니다. 복원 후 복호화하려면 백업 당시의 `.env` 내 `CREDENTIAL_KEY`도 안전한 별도 저장소에 보관해야 합니다.
+
+사이트 자격증명을 DB에서 안전하게 바꾸려면 평문 SQL 대신 암호화 갱신 스크립트를 실행합니다. 비밀번호는 터미널에 표시되지 않고 대화형으로 입력됩니다.
+
+```bash
+docker compose exec -it web python scripts/update_site_credentials.py partner.choigozip.co.kr
+```
+
+변경 직후 **DB 덤프 하기**를 다시 눌러 `latest.dump`에도 반영하십시오.
 
 ## 사용 순서
 

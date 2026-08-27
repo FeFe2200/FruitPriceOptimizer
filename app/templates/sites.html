@@ -1,4 +1,78 @@
 {% extends 'base.html' %}
-{% block content %}<div class="page-head"><div><h1>사이트·자격증명</h1><p class="muted">관리자 전용. 저장된 아이디·비밀번호는 암호화되며 화면에 다시 표시하지 않습니다.</p></div></div>
-<section class="card"><h2>사이트 등록</h2><form method="post" action="/sites" class="form-grid"><input type="hidden" name="csrf" value="{{ csrf_token }}"><label>이름<input name="name" required></label><label>허용 도메인<input name="domain" placeholder="shop.example" required></label><label class="wide">상품 목록/조사 URL<input name="catalog_url" type="url" required></label><label class="wide">로그인 URL<input name="login_url" type="url"></label><label>아이디 선택자<input name="username_selector" placeholder="#username"></label><label>비밀번호 선택자<input name="password_selector" placeholder="#password"></label><label>로그인 버튼 선택자<input name="submit_selector" placeholder="button[type=submit]"></label><span></span><label>사이트 아이디<input name="site_username" autocomplete="off"></label><label>사이트 비밀번호<input name="site_password" type="password" autocomplete="new-password"></label><button>암호화하여 저장</button></form></section>
-<section class="card"><h2>등록 사이트</h2><div class="table-wrap"><table><thead><tr><th>이름</th><th>도메인</th><th>조사 시작 페이지</th><th>로그인</th><th>자격증명</th></tr></thead><tbody>{% for site in sites %}<tr><td>{{ site.name }}</td><td><code>{{ site.domain }}</code></td><td><a href="{{ site.catalog_url }}" target="_blank" rel="noopener">열기</a></td><td>{{ '설정됨' if site.login_url else '없음' }}</td><td>{{ '🔒 암호화 저장됨' if site.encrypted_username else '없음' }}</td></tr>{% else %}<tr><td colspan="5">등록 사이트가 없습니다.</td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>사이트·자격증명</h1>
+    <p class="muted">관리자 전용. 저장된 아이디·비밀번호는 암호화되며 화면에 다시 표시하지 않습니다.</p>
+  </div>
+</div>
+
+{% if dumped %}<p class="success">DB 덤프 완료: <code>dbDump/{{ dumped }}</code> 및 <code>dbDump/latest.dump</code></p>{% endif %}
+
+<section class="card">
+  <h2>DB 백업</h2>
+  <p class="muted">현재 PostgreSQL 전체 데이터를 프로젝트의 <code>dbDump</code> 폴더에 백업합니다. 새 Docker DB는 <code>latest.dump</code>를 자동 복원합니다.</p>
+  <form method="post" action="/sites/dump">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <button type="submit">DB 덤프 하기</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>사이트 등록</h2>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <p class="muted">자주 쓰는 유형을 선택하면 검증한 도메인·URL·로그인 선택자를 자동 입력합니다. 이름과 자격증명만 바꿔 같은 유형을 반복 등록할 수 있습니다.</p>
+  <div class="form-grid">
+    <label>빠른 등록 유형
+      <select id="site-preset">
+        <option value="">직접 입력</option>
+        {% for key, preset in site_presets.items() %}<option value="{{ key }}">{{ preset.label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>&nbsp;<button type="button" id="apply-site-preset">선택 유형으로 채우기</button></label>
+  </div>
+  <p class="muted">로그인을 설정하려면 로그인 URL, 선택자 3개, 사이트 아이디와 비밀번호를 모두 입력해야 합니다.</p>
+  <form method="post" action="/sites" class="form-grid" id="site-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>이름<input name="name" value="{{ form.name if form else '' }}" required></label>
+    <label>허용 도메인<input name="domain" value="{{ form.domain if form else '' }}" placeholder="shop.example" required></label>
+    <label class="wide">상품 목록/조사 URL<input name="catalog_url" value="{{ form.catalog_url if form else '' }}" type="url" required></label>
+    <label class="wide">로그인 URL<input name="login_url" value="{{ form.login_url if form else '' }}" type="url"></label>
+    <label class="wide">로그인 창 열기 선택자 (선택)<input name="login_pre_click_selector" value="{{ form.login_pre_click_selector if form else '' }}" placeholder="text=로그인"></label>
+    <label>아이디 선택자<input name="username_selector" value="{{ form.username_selector if form else '' }}" placeholder="#username"></label>
+    <label>비밀번호 선택자<input name="password_selector" value="{{ form.password_selector if form else '' }}" placeholder="#password"></label>
+    <label>로그인 버튼 선택자<input name="submit_selector" value="{{ form.submit_selector if form else '' }}" placeholder="button[type=submit]"></label>
+    <span></span>
+    <label>사이트 아이디<input name="site_username" autocomplete="off"></label>
+    <label>사이트 비밀번호<input name="site_password" type="password" autocomplete="new-password"></label>
+    <button>암호화하여 저장</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>등록 사이트</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>이름</th><th>도메인</th><th>조사 시작 페이지</th><th>로그인</th><th>자격증명</th></tr></thead>
+      <tbody>
+      {% for site in sites %}
+        <tr><td>{{ site.name }}</td><td><code>{{ site.domain }}</code></td><td><a href="{{ site.catalog_url }}" target="_blank" rel="noopener">열기</a></td><td>{{ '설정됨' if site.login_url else '없음' }}</td><td>{{ '🔒 암호화 저장됨' if site.encrypted_username else '없음' }}</td></tr>
+      {% else %}
+        <tr><td colspan="5">등록 사이트가 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  const sitePresets = {{ site_presets | tojson }};
+  document.getElementById('apply-site-preset').addEventListener('click', () => {
+    const preset = sitePresets[document.getElementById('site-preset').value];
+    if (!preset) return;
+    const form = document.getElementById('site-form');
+    ['domain', 'catalog_url', 'login_url', 'login_pre_click_selector', 'username_selector', 'password_selector', 'submit_selector']
+      .forEach((name) => { form.elements[name].value = preset[name] || ''; });
+  });
+</script>
+{% endblock %}

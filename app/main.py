@@ -1,4 +1,6 @@
+import asyncio
 import secrets
+import subprocess
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.backup import create_database_dump
 from app.config import settings
 from app.db import SessionLocal, create_schema, get_session
 from app.models import (
@@ -34,6 +37,7 @@ from app.scraping import (
     validate_scrape_url,
 )
 from app.security import CredentialCipher, hash_password, verify_password
+from app.site_presets import SITE_PRESETS
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -401,11 +405,51 @@ async def create_schedule(
 @app.get("/sites", response_class=HTMLResponse)
 async def sites_page(
     request: Request,
+    dumped: str = "",
     user: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     sites = (await session.execute(select(Site).order_by(Site.name))).scalars().all()
-    return templates.TemplateResponse(request, "sites.html", context(request, user, sites=sites))
+    return templates.TemplateResponse(
+        request,
+        "sites.html",
+        context(
+            request,
+            user,
+            sites=sites,
+            site_presets=SITE_PRESETS,
+            dumped=Path(dumped).name if dumped else "",
+        ),
+    )
+
+
+@app.post("/sites/dump")
+async def dump_database(
+    request: Request,
+    csrf: str = Form(),
+    user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    check_csrf(request, csrf)
+    try:
+        created = await asyncio.to_thread(create_database_dump, settings.db_dump_dir)
+    except (RuntimeError, OSError, subprocess.CalledProcessError) as exc:
+        sites = (await session.execute(select(Site).order_by(Site.name))).scalars().all()
+        return templates.TemplateResponse(
+            request,
+            "sites.html",
+            context(
+                request,
+                user,
+                sites=sites,
+                site_presets=SITE_PRESETS,
+                error=f"DB 덤프에 실패했습니다: {exc}",
+            ),
+            status_code=500,
+        )
+    await audit(session, user, "database.dump", "database", None, {"file": created.name})
+    await session.commit()
+    return RedirectResponse(f"/sites?dumped={created.name}", status_code=303)
 
 
 @app.post("/sites")
@@ -415,6 +459,7 @@ async def create_site(
     domain: str = Form(),
     catalog_url: str = Form(),
     login_url: str = Form(default=""),
+    login_pre_click_selector: str = Form(default=""),
     username_selector: str = Form(default=""),
     password_selector: str = Form(default=""),
     submit_selector: str = Form(default=""),
@@ -425,26 +470,53 @@ async def create_site(
     session: AsyncSession = Depends(get_session),
 ):
     check_csrf(request, csrf)
-    normalized_domain = domain.strip().lower()
-    if "://" in normalized_domain:
-        normalized_domain = urlparse(normalized_domain).hostname or ""
-    validate_scrape_url(catalog_url, normalized_domain)
-    validate_login_configuration(
-        login_url,
-        site_username,
-        site_password,
-        username_selector,
-        password_selector,
-        submit_selector,
-    )
-    if login_url:
-        validate_login_url(login_url, normalized_domain, bool(site_username or site_password))
+    form_values = {
+        "name": name,
+        "domain": domain,
+        "catalog_url": catalog_url,
+        "login_url": login_url,
+        "login_pre_click_selector": login_pre_click_selector,
+        "username_selector": username_selector,
+        "password_selector": password_selector,
+        "submit_selector": submit_selector,
+    }
+    try:
+        normalized_domain = domain.strip().lower()
+        if "://" in normalized_domain:
+            normalized_domain = urlparse(normalized_domain).hostname or ""
+        validate_scrape_url(catalog_url, normalized_domain)
+        validate_login_configuration(
+            login_url,
+            site_username,
+            site_password,
+            username_selector,
+            password_selector,
+            submit_selector,
+        )
+        if login_url:
+            validate_login_url(login_url, normalized_domain, bool(site_username or site_password))
+    except ValueError as exc:
+        sites = (await session.execute(select(Site).order_by(Site.name))).scalars().all()
+        return templates.TemplateResponse(
+            request,
+            "sites.html",
+            context(
+                request,
+                user,
+                sites=sites,
+                site_presets=SITE_PRESETS,
+                error=str(exc),
+                form=form_values,
+            ),
+            status_code=400,
+        )
     cipher = CredentialCipher(settings.credential_key)
     site = Site(
         name=name.strip(),
         domain=normalized_domain,
         catalog_url=catalog_url.strip(),
         login_url=login_url.strip(),
+        login_pre_click_selector=login_pre_click_selector.strip(),
         username_selector=username_selector.strip(),
         password_selector=password_selector.strip(),
         submit_selector=submit_selector.strip(),

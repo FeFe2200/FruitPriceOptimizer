@@ -11,6 +11,7 @@ class Settings:
     admin_password: str
     secure_cookies: bool
     scrape_timeout_ms: int
+    db_dump_dir: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -31,6 +32,7 @@ class Settings:
             admin_password=required["ADMIN_PASSWORD"] or "",
             secure_cookies=os.getenv("SECURE_COOKIES", "false").lower() == "true",
             scrape_timeout_ms=int(os.getenv("SCRAPE_TIMEOUT_MS", "30000")),
+            db_dump_dir=os.getenv("DB_DUMP_DIR", "/app/dbDump"),
         )
 
 

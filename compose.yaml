@@ -14,14 +14,33 @@ services:
       retries: 20
     restart: unless-stopped
 
-  web:
-    build: .
+  db-init:
+    image: postgres:16-alpine
     env_file: .env
-    ports:
-      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    command: ["/bin/sh", "/restore-db.sh"]
+    volumes:
+      - ./dbDump:/backups:ro
+      - ./scripts/restore-db.sh:/restore-db.sh:ro
     depends_on:
       db:
         condition: service_healthy
+    restart: "no"
+
+  web:
+    build: .
+    env_file: .env
+    environment:
+      DB_DUMP_DIR: /app/dbDump
+      POSTGRES_HOST: db
+    volumes:
+      - ./dbDump:/app/dbDump
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -34,8 +53,8 @@ services:
     command: ["python", "-m", "app.worker"]
     env_file: .env
     depends_on:
-      db:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     shm_size: "1gb"
     restart: unless-stopped
 
@@ -44,8 +63,8 @@ services:
     command: ["python", "-m", "app.scheduler"]
     env_file: .env
     depends_on:
-      db:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:

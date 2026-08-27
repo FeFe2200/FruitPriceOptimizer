@@ -30,6 +30,7 @@ class Site(Base):
     domain: Mapped[str] = mapped_column(String(255), index=True)
     catalog_url: Mapped[str] = mapped_column(Text)
     login_url: Mapped[str] = mapped_column(Text, default="")
+    login_pre_click_selector: Mapped[str] = mapped_column(String(500), default="")
     username_selector: Mapped[str] = mapped_column(String(500), default="")
     password_selector: Mapped[str] = mapped_column(String(500), default="")
     submit_selector: Mapped[str] = mapped_column(String(500), default="")

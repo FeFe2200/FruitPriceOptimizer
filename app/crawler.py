@@ -92,6 +92,8 @@ async def _login(page: Page, site: Site, cipher: CredentialCipher) -> None:
     validate_login_url(site.login_url, site.domain, True)
     await page.goto(site.login_url, wait_until="domcontentloaded")
     validate_login_url(page.url, site.domain, True)
+    if site.login_pre_click_selector:
+        await page.locator(site.login_pre_click_selector).click()
     submit = page.locator(site.submit_selector)
     form_action = await submit.evaluate(
         "element => element.formAction || (element.form ? element.form.action : '')"

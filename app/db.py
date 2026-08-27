@@ -27,5 +27,11 @@ async def create_schema() -> None:
         await connection.execute(text("SELECT pg_advisory_lock(714221)"))
         try:
             await connection.run_sync(Base.metadata.create_all)
+            await connection.execute(
+                text(
+                    "ALTER TABLE sites ADD COLUMN IF NOT EXISTS "
+                    "login_pre_click_selector VARCHAR(500) NOT NULL DEFAULT ''"
+                )
+            )
         finally:
             await connection.execute(text("SELECT pg_advisory_unlock(714221)"))
