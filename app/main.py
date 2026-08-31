@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.admin_actions import delete_product_record, delete_schedule_record, mask_credential
 from app.backup import create_database_dump
 from app.config import settings
 from app.db import SessionLocal, create_schema, get_session
@@ -230,6 +231,22 @@ async def create_product(
     return RedirectResponse(f"/products/{product.id}", status_code=303)
 
 
+@app.post("/products/{product_id}/delete")
+async def delete_product(
+    product_id: int,
+    request: Request,
+    csrf: str = Form(),
+    user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    check_csrf(request, csrf)
+    if not await delete_product_record(session, product_id):
+        raise HTTPException(404)
+    await audit(session, user, "product.delete", "product", product_id)
+    await session.commit()
+    return RedirectResponse("/", status_code=303)
+
+
 @app.get("/products/{product_id}", response_class=HTMLResponse)
 async def product_detail(
     product_id: int,
@@ -402,6 +419,30 @@ async def create_schedule(
     return RedirectResponse(f"/products/{product_id}", status_code=303)
 
 
+@app.post("/products/{product_id}/schedules/{schedule_id}/delete")
+async def delete_schedule(
+    product_id: int,
+    schedule_id: int,
+    request: Request,
+    csrf: str = Form(),
+    user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    check_csrf(request, csrf)
+    if not await delete_schedule_record(session, product_id=product_id, schedule_id=schedule_id):
+        raise HTTPException(404)
+    await audit(
+        session,
+        user,
+        "schedule.delete",
+        "schedule",
+        schedule_id,
+        {"product_id": product_id},
+    )
+    await session.commit()
+    return RedirectResponse(f"/products/{product_id}", status_code=303)
+
+
 @app.get("/sites", response_class=HTMLResponse)
 async def sites_page(
     request: Request,
@@ -419,6 +460,32 @@ async def sites_page(
             sites=sites,
             site_presets=SITE_PRESETS,
             dumped=Path(dumped).name if dumped else "",
+        ),
+    )
+
+
+@app.get("/sites/{site_id}", response_class=HTMLResponse)
+async def site_detail(
+    site_id: int,
+    request: Request,
+    user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    selected_site = await session.get(Site, site_id)
+    if not selected_site:
+        raise HTTPException(404)
+    sites = (await session.execute(select(Site).order_by(Site.name))).scalars().all()
+    return templates.TemplateResponse(
+        request,
+        "sites.html",
+        context(
+            request,
+            user,
+            sites=sites,
+            selected_site=selected_site,
+            masked_username=mask_credential(selected_site.encrypted_username),
+            masked_password=mask_credential(selected_site.encrypted_password),
+            site_presets=SITE_PRESETS,
         ),
     )
 

@@ -3,7 +3,7 @@
 <div class="page-head">
   <div>
     <h1>사이트·자격증명</h1>
-    <p class="muted">관리자 전용. 저장된 아이디·비밀번호는 암호화되며 화면에 다시 표시하지 않습니다.</p>
+    <p class="muted">관리자 전용. 사이트 아이디·비밀번호는 암호화하여 저장하고 상세 화면에는 고정 마스크만 표시합니다.</p>
   </div>
 </div>
 
@@ -18,6 +18,25 @@
   </form>
 </section>
 
+{% if selected_site %}
+<section class="card">
+  <div class="page-head"><div><h2>등록 사이트 상세</h2><p class="muted">조회된 정보는 읽기 전용입니다. 자격증명은 복호화하지 않고 저장 여부만 고정 길이로 마스킹합니다.</p></div><a href="/sites">새 사이트 등록으로 돌아가기</a></div>
+  <form class="form-grid" aria-label="등록 사이트 상세">
+    <label>이름<input value="{{ selected_site.name }}" disabled></label>
+    <label>허용 도메인<input value="{{ selected_site.domain }}" disabled></label>
+    <label class="wide">상품 목록/조사 URL<input value="{{ selected_site.catalog_url }}" disabled></label>
+    <label class="wide">로그인 URL<input value="{{ selected_site.login_url }}" disabled></label>
+    <label class="wide">로그인 창 열기 선택자<input value="{{ selected_site.login_pre_click_selector }}" disabled></label>
+    <label>아이디 선택자<input value="{{ selected_site.username_selector }}" disabled></label>
+    <label>비밀번호 선택자<input value="{{ selected_site.password_selector }}" disabled></label>
+    <label>로그인 버튼 선택자<input value="{{ selected_site.submit_selector }}" disabled></label>
+    <span></span>
+    <label>사이트 아이디<input value="{{ masked_username }}" disabled></label>
+    <label>사이트 비밀번호<input value="{{ masked_password }}" type="text" disabled></label>
+    <button type="button" disabled>암호화 저장됨 · 수정 불가</button>
+  </form>
+</section>
+{% else %}
 <section class="card">
   <h2>사이트 등록</h2>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
@@ -48,6 +67,7 @@
     <button>암호화하여 저장</button>
   </form>
 </section>
+{% endif %}
 
 <section class="card">
   <h2>등록 사이트</h2>
@@ -56,7 +76,7 @@
       <thead><tr><th>이름</th><th>도메인</th><th>조사 시작 페이지</th><th>로그인</th><th>자격증명</th></tr></thead>
       <tbody>
       {% for site in sites %}
-        <tr><td>{{ site.name }}</td><td><code>{{ site.domain }}</code></td><td><a href="{{ site.catalog_url }}" target="_blank" rel="noopener">열기</a></td><td>{{ '설정됨' if site.login_url else '없음' }}</td><td>{{ '🔒 암호화 저장됨' if site.encrypted_username else '없음' }}</td></tr>
+        <tr><td><a href="/sites/{{ site.id }}"><strong>{{ site.name }}</strong></a></td><td><code>{{ site.domain }}</code></td><td><a href="{{ site.catalog_url }}" target="_blank" rel="noopener">열기</a></td><td>{{ '설정됨' if site.login_url else '없음' }}</td><td>{{ '🔒 암호화 저장됨' if site.encrypted_username else '없음' }}</td></tr>
       {% else %}
         <tr><td colspan="5">등록 사이트가 없습니다.</td></tr>
       {% endfor %}
@@ -65,6 +85,7 @@
   </div>
 </section>
 
+{% if not selected_site %}
 <script>
   const sitePresets = {{ site_presets | tojson }};
   document.getElementById('apply-site-preset').addEventListener('click', () => {
@@ -75,4 +96,5 @@
       .forEach((name) => { form.elements[name].value = preset[name] || ''; });
   });
 </script>
+{% endif %}
 {% endblock %}

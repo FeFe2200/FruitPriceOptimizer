@@ -73,11 +73,64 @@ def main() -> None:
     dashboard = opener.open(BASE_URL + "/").read().decode()
     if "승인된 상품 페이지가 없습니다" not in dashboard:
         raise RuntimeError("worker did not claim and record the comparison job")
+
+    temporary_name = "삭제 기능 스모크 상품"
+    temporary_pattern = rf'href="/products/(\d+)"[^>]*>\s*{temporary_name}'
+    stale_temporary = re.search(temporary_pattern, dashboard)
+    if stale_temporary:
+        dashboard = post(
+            opener,
+            f"/products/{stale_temporary.group(1)}/delete",
+            {"csrf": csrf_from(dashboard)},
+        )
+    temporary_page = post(
+        opener,
+        "/products",
+        {"name": temporary_name, "keywords": "delete smoke", "csrf": csrf_from(dashboard)},
+    )
+    temporary_id_match = re.search(r"/products/(\d+)/run", temporary_page)
+    if not temporary_id_match:
+        raise RuntimeError("temporary product creation failed")
+    temporary_id = temporary_id_match.group(1)
+    scheduled_page = post(
+        opener,
+        f"/products/{temporary_id}/schedules",
+        {
+            "cron_expression": "0 9 * * *",
+            "timezone": "Asia/Seoul",
+            "csrf": csrf_from(temporary_page),
+        },
+    )
+    schedule_match = re.search(rf"/products/{temporary_id}/schedules/(\d+)/delete", scheduled_page)
+    if not schedule_match:
+        raise RuntimeError("schedule delete control was not rendered")
+    schedule_id = schedule_match.group(1)
+    after_schedule_delete = post(
+        opener,
+        f"/products/{temporary_id}/schedules/{schedule_id}/delete",
+        {"csrf": csrf_from(scheduled_page)},
+    )
+    if f"/schedules/{schedule_id}/delete" in after_schedule_delete:
+        raise RuntimeError("schedule deletion failed")
+    dashboard = post(
+        opener,
+        f"/products/{temporary_id}/delete",
+        {"csrf": csrf_from(after_schedule_delete)},
+    )
+    if temporary_name in dashboard:
+        raise RuntimeError("product deletion failed")
+
     sites_page = opener.open(BASE_URL + "/sites").read().decode()
     if "사이트·자격증명" not in sites_page:
         raise RuntimeError("admin site access failed")
     if "AdminPlus · hwanggs3" not in sites_page or "최고집 파트너" not in sites_page:
         raise RuntimeError("site quick-registration presets are missing")
+    site_match = re.search(r'href="/sites/(\d+)"', sites_page)
+    if site_match:
+        site_detail = opener.open(BASE_URL + f"/sites/{site_match.group(1)}").read().decode()
+        required_detail_markers = ["••••••••••••", "암호화 저장됨 · 수정 불가", "disabled"]
+        if not all(marker in site_detail for marker in required_detail_markers):
+            raise RuntimeError("site credentials were not rendered as a disabled mask")
     try:
         post(
             opener,
@@ -130,7 +183,7 @@ def main() -> None:
             "csrf": csrf_from(viewer_login),
         },
     )
-    if "비교 상품 등록" in viewer_dashboard:
+    if "비교 상품 등록" in viewer_dashboard or "/delete" in viewer_dashboard:
         raise RuntimeError("viewer received admin mutation controls")
     try:
         post(
@@ -145,7 +198,7 @@ def main() -> None:
         raise RuntimeError("viewer mutation was not rejected")
     print(
         "smoke test passed: health, login, product CRUD, worker queue, "
-        "site presets, DB dump, admin access, viewer RBAC"
+        "schedule deletion, masked site detail, DB dump, admin access, viewer RBAC"
     )
 
 

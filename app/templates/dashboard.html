@@ -1,6 +1,8 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="page-head"><div><h1>가격 비교 대시보드</h1><p class="muted">상품별 수동 실행과 정기 수집 결과를 확인합니다.</p></div></div>
+<div class="page-head">
+  <div><h1>가격 비교 대시보드</h1><p class="muted">상품별 수동 실행과 정기 수집 결과를 확인합니다.</p></div>
+</div>
 <section class="grid two">
   {% if user.role == 'admin' %}
   <div class="card">
@@ -15,7 +17,21 @@
   {% endif %}
   <div class="card">
     <h2>등록 상품</h2>
-    {% if products %}<ul class="clean">{% for product in products %}<li><a href="/products/{{ product.id }}">{{ product.name }}</a><span class="tag">{{ product.keywords or '추가 검색어 없음' }}</span></li>{% endfor %}</ul>{% else %}<p class="empty">등록된 상품이 없습니다.</p>{% endif %}
+    {% if products %}
+    <ul class="clean">
+      {% for product in products %}
+      <li>
+        <span><a href="/products/{{ product.id }}">{{ product.name }}</a> <span class="tag">{{ product.keywords or '추가 검색어 없음' }}</span></span>
+        {% if user.role == 'admin' %}
+        <form class="inline" method="post" action="/products/{{ product.id }}/delete" onsubmit="return confirm('상품과 연결된 스케줄·가격 이력을 모두 삭제할까요?');">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="danger compact-button" type="submit">삭제</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="empty">등록된 상품이 없습니다.</p>{% endif %}
   </div>
 </section>
 <section class="card"><h2>최근 작업</h2><div class="table-wrap"><table><thead><tr><th>상품</th><th>유형</th><th>상태</th><th>요청</th><th>오류</th></tr></thead><tbody>{% for job in jobs %}<tr><td>{{ job.product.name }}</td><td>{{ job.job_type }}</td><td><span class="status {{ job.status }}">{{ job.status }}</span></td><td>{{ job.queued_at.strftime('%m-%d %H:%M') }}</td><td class="error-cell">{{ job.error }}</td></tr>{% else %}<tr><td colspan="5">작업이 없습니다.</td></tr>{% endfor %}</tbody></table></div></section>
