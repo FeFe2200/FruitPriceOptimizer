@@ -47,7 +47,9 @@ class Product(Base):
     keywords: Mapped[str] = mapped_column(String(500), default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    sources: Mapped[list["ProductSource"]] = relationship(back_populates="product")
+    sources: Mapped[list["ProductSource"]] = relationship(
+        back_populates="product", passive_deletes=True
+    )
 
 
 class ProductSource(Base):
@@ -82,7 +84,9 @@ class Job(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     job_type: Mapped[str] = mapped_column(String(20), default="compare")
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
-    schedule_id: Mapped[int | None] = mapped_column(ForeignKey("schedules.id"), nullable=True)
+    schedule_id: Mapped[int | None] = mapped_column(
+        ForeignKey("schedules.id", ondelete="SET NULL"), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
     requested_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

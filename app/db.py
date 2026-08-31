@@ -33,5 +33,28 @@ async def create_schema() -> None:
                     "login_pre_click_selector VARCHAR(500) NOT NULL DEFAULT ''"
                 )
             )
+            await connection.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1
+                            FROM pg_constraint
+                            WHERE conname = 'jobs_schedule_id_fkey'
+                              AND conrelid = 'jobs'::regclass
+                              AND confdeltype = 'n'
+                        ) THEN
+                            ALTER TABLE jobs
+                                DROP CONSTRAINT IF EXISTS jobs_schedule_id_fkey;
+                            ALTER TABLE jobs
+                                ADD CONSTRAINT jobs_schedule_id_fkey
+                                FOREIGN KEY (schedule_id) REFERENCES schedules(id)
+                                ON DELETE SET NULL;
+                        END IF;
+                    END $$;
+                    """
+                )
+            )
         finally:
             await connection.execute(text("SELECT pg_advisory_unlock(714221)"))
