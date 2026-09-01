@@ -66,6 +66,27 @@ def main() -> None:
         raise RuntimeError(f"created product link not found: {excerpt}")
     product_id = product_match.group(1)
     product_page = opener.open(BASE_URL + f"/products/{product_id}").read().decode()
+    candidate_delete_match = re.search(
+        rf"/products/{product_id}/candidates/(\d+)/delete", product_page
+    )
+    deleted_candidate_id = candidate_delete_match.group(1) if candidate_delete_match else None
+    if deleted_candidate_id:
+        candidate_markers = [
+            'id="source-form"',
+            "candidate-select",
+            "data-site-id=",
+            "data-page-url=",
+            "sourceForm.elements.page_url.value",
+        ]
+        if not all(marker in product_page for marker in candidate_markers):
+            raise RuntimeError("candidate selection controls were not rendered")
+        product_page = post(
+            opener,
+            f"/products/{product_id}/candidates/{deleted_candidate_id}/delete",
+            {"csrf": csrf_from(product_page)},
+        )
+        if f"/candidates/{deleted_candidate_id}/delete" in product_page:
+            raise RuntimeError("candidate deletion failed")
     post(
         opener,
         f"/products/{product_id}/run",
@@ -220,6 +241,18 @@ def main() -> None:
     )
     if "비교 상품 등록" in viewer_dashboard or "/delete" in viewer_dashboard:
         raise RuntimeError("viewer received admin mutation controls")
+    if deleted_candidate_id:
+        try:
+            post(
+                viewer,
+                f"/products/{product_id}/candidates/{deleted_candidate_id}/delete",
+                {"csrf": csrf_from(viewer_dashboard)},
+            )
+        except urllib.error.HTTPError as exc:
+            if exc.code != 403:
+                raise
+        else:
+            raise RuntimeError("viewer candidate deletion was not rejected")
     try:
         post(
             viewer,
@@ -252,7 +285,8 @@ def main() -> None:
         raise RuntimeError("viewer mutation was not rejected")
     print(
         "smoke test passed: health, login, product CRUD, worker queue, "
-        "schedule deletion, masked site detail, DB dump, admin access, viewer RBAC"
+        "candidate selection/deletion, schedule deletion, masked site detail, "
+        "DB dump, admin access, viewer RBAC"
     )
 
 

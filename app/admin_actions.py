@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Product, Schedule
+from app.models import DiscoveryCandidate, Product, Schedule
 
 MASKED_CREDENTIAL = "••••••••••••"
 
@@ -25,4 +25,14 @@ async def delete_schedule_record(
     if not schedule or schedule.product_id != product_id:
         return False
     await session.delete(schedule)
+    return True
+
+
+async def delete_candidate_record(
+    session: AsyncSession, *, product_id: int, candidate_id: int
+) -> bool:
+    candidate = await session.get(DiscoveryCandidate, candidate_id)
+    if not candidate or candidate.product_id != product_id:
+        return False
+    await session.delete(candidate)
     return True

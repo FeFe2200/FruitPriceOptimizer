@@ -32,8 +32,58 @@
   <div class="card"><h2>수집 소스</h2>{% for source in sources %}<div class="source"><strong>{{ source.site.name }}</strong><a href="{{ source.page_url }}" target="_blank" rel="noopener">상품 페이지</a><code>{{ source.row_selector }} → {{ source.price_selector }}</code></div>{% else %}<p class="empty">등록된 상품 페이지가 없습니다.</p>{% endfor %}</div>
 </section>
 {% if user.role == 'admin' %}
-<section class="card"><h2>상품 페이지 등록</h2><p class="muted">도메인은 로그인·자동 조사 범위이고, 실제 반복 비교에는 상품 상세 페이지와 CSS 선택자를 저장합니다.</p><form method="post" action="/products/{{ product.id }}/sources" class="form-grid"><input type="hidden" name="csrf" value="{{ csrf_token }}"><label>사이트<select name="site_id" required>{% for site in sites %}<option value="{{ site.id }}">{{ site.name }}</option>{% endfor %}</select></label><label class="wide">상품 페이지 URL<input name="page_url" required placeholder="https://shop.example/products/123"></label><label>옵션 행 선택자<input name="row_selector" required placeholder=".option-row"></label><label>옵션명 선택자<input name="name_selector" required placeholder=".option-name"></label><label>가격 선택자<input name="price_selector" required placeholder=".price"></label><label>추출 전 클릭 선택자<input name="pre_click_selector" placeholder="선택사항: 상세보기 버튼"></label><button>소스 저장</button></form></section>
-<section class="card"><h2>자동 조사 후보</h2><div class="table-wrap"><table><thead><tr><th>사이트</th><th>발견된 상품명</th><th>페이지</th></tr></thead><tbody>{% for candidate in candidates %}<tr><td>{{ candidate.site.name }}</td><td>{{ candidate.title }}</td><td><a href="{{ candidate.page_url }}" target="_blank" rel="noopener">열기</a></td></tr>{% else %}<tr><td colspan="3">후보가 없습니다. 링크가 없는 SPA 상품은 상품 페이지를 직접 등록하세요.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="card" id="source-registration">
+  <h2>상품 페이지 등록</h2>
+  <p class="muted">도메인은 로그인·자동 조사 범위이고, 실제 반복 비교에는 상품 상세 페이지와 CSS 선택자를 저장합니다.</p>
+  <p class="success" id="candidate-selection-message" hidden></p>
+  <form method="post" action="/products/{{ product.id }}/sources" class="form-grid" id="source-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>사이트<select name="site_id" required>{% for site in sites %}<option value="{{ site.id }}">{{ site.name }}</option>{% endfor %}</select></label>
+    <label class="wide">상품 페이지 URL<input name="page_url" required placeholder="https://shop.example/products/123"></label>
+    <label>옵션 행 선택자<input name="row_selector" required placeholder=".option-row"></label>
+    <label>옵션명 선택자<input name="name_selector" required placeholder=".option-name"></label>
+    <label>가격 선택자<input name="price_selector" required placeholder=".price"></label>
+    <label>추출 전 클릭 선택자<input name="pre_click_selector" placeholder="선택사항: 상세보기 버튼"></label>
+    <button>소스 저장</button>
+  </form>
+</section>
+<section class="card">
+  <h2>자동 조사 후보</h2>
+  <p class="muted">후보 이름을 누르면 사이트와 상품 페이지 URL이 위 등록 폼에 입력됩니다. 상품 구조에 맞는 CSS 선택자를 확인한 후 저장하세요.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>사이트</th><th>발견된 상품명</th><th>페이지</th><th>선택</th><th>관리</th></tr></thead>
+      <tbody>
+      {% for candidate in candidates %}
+        <tr>
+          <td>{{ candidate.site.name }}</td>
+          <td><button type="button" class="secondary compact-button candidate-select" data-site-id="{{ candidate.site_id }}" data-page-url="{{ candidate.page_url }}" data-title="{{ candidate.title }}">{{ candidate.title }}</button></td>
+          <td><a href="{{ candidate.page_url }}" target="_blank" rel="noopener">열기</a></td>
+          <td><button type="button" class="candidate-select compact-button" data-site-id="{{ candidate.site_id }}" data-page-url="{{ candidate.page_url }}" data-title="{{ candidate.title }}">등록 폼에 넣기</button></td>
+          <td><form class="inline" method="post" action="/products/{{ product.id }}/candidates/{{ candidate.id }}/delete" onsubmit="return confirm('이 자동 조사 후보를 삭제할까요?');"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger compact-button" type="submit">삭제</button></form></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5">후보가 없습니다. 링크가 없는 SPA 상품은 상품 페이지를 직접 등록하세요.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<script>
+  const sourceForm = document.getElementById('source-form');
+  const sourceRegistration = document.getElementById('source-registration');
+  const candidateMessage = document.getElementById('candidate-selection-message');
+  document.querySelectorAll('.candidate-select').forEach((button) => {
+    button.addEventListener('click', () => {
+      sourceForm.elements.site_id.value = button.dataset.siteId;
+      sourceForm.elements.page_url.value = button.dataset.pageUrl;
+      candidateMessage.textContent = `“${button.dataset.title}” 후보의 사이트와 URL을 입력했습니다.`;
+      candidateMessage.hidden = false;
+      sourceRegistration.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      sourceForm.elements.row_selector.focus();
+    });
+  });
+</script>
 {% endif %}
 <section class="card"><h2>가격 이력</h2><div class="table-wrap"><table><thead><tr><th>사이트</th><th>옵션</th><th>가격</th><th>수집시각</th></tr></thead><tbody>{% for row in snapshots %}<tr><td>{{ row.site.name }}</td><td>{{ row.option_name }}</td><td class="price">{{ '{:,.0f}'.format(row.price) }}원</td><td>{{ row.collected_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>{% else %}<tr><td colspan="4">아직 수집된 가격이 없습니다.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endblock %}

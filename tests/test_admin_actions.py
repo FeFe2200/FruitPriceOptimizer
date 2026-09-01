@@ -3,7 +3,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.admin_actions import delete_product_record, delete_schedule_record, mask_credential
+from app.admin_actions import (
+    delete_candidate_record,
+    delete_product_record,
+    delete_schedule_record,
+    mask_credential,
+)
 from app.models import Job, Product
 
 
@@ -56,3 +61,16 @@ def test_product_sources_rely_on_database_cascade_without_nulling_foreign_key():
 def test_job_schedule_foreign_key_uses_on_delete_set_null():
     foreign_key = next(iter(Job.__table__.c.schedule_id.foreign_keys))
     assert foreign_key.ondelete == "SET NULL"
+
+
+@pytest.mark.asyncio
+async def test_delete_candidate_record_requires_matching_product():
+    candidate = SimpleNamespace(id=17, product_id=3)
+    session = SimpleNamespace(get=AsyncMock(return_value=candidate), delete=AsyncMock())
+
+    assert await delete_candidate_record(session, product_id=3, candidate_id=17) is True
+    session.delete.assert_awaited_once_with(candidate)
+
+    session.delete.reset_mock()
+    assert await delete_candidate_record(session, product_id=99, candidate_id=17) is False
+    session.delete.assert_not_awaited()

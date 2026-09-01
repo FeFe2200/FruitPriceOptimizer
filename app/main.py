@@ -16,7 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.admin_actions import delete_product_record, delete_schedule_record, mask_credential
+from app.admin_actions import (
+    delete_candidate_record,
+    delete_product_record,
+    delete_schedule_record,
+    mask_credential,
+)
 from app.backup import create_database_dump
 from app.config import settings
 from app.db import SessionLocal, create_schema, get_session
@@ -347,6 +352,30 @@ async def run_discovery(
     job = Job(product_id=product_id, job_type="discover", requested_by=user.id)
     session.add(job)
     await audit(session, user, "discovery.enqueue", "product", product_id)
+    await session.commit()
+    return RedirectResponse(f"/products/{product_id}", status_code=303)
+
+
+@app.post("/products/{product_id}/candidates/{candidate_id}/delete")
+async def delete_candidate(
+    product_id: int,
+    candidate_id: int,
+    request: Request,
+    csrf: str = Form(),
+    user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    check_csrf(request, csrf)
+    if not await delete_candidate_record(session, product_id=product_id, candidate_id=candidate_id):
+        raise HTTPException(404)
+    await audit(
+        session,
+        user,
+        "candidate.delete",
+        "discovery_candidate",
+        candidate_id,
+        {"product_id": product_id},
+    )
     await session.commit()
     return RedirectResponse(f"/products/{product_id}", status_code=303)
 
